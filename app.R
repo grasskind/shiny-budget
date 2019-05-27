@@ -8,6 +8,7 @@
 #
 
 library(shiny)
+library(data.table)
 library(shinydashboard)
 
 # Read in categories for the user's purchases
@@ -15,6 +16,16 @@ if (file.exists("categories.rds")) {
   category_list <- readRDS("categories.rds")
 } else {
   category_list <- c("Restaurants", "Groceries")
+}
+
+# Initialize database if one doesn't exist
+if (file.exists("shiny_database.rds")) {
+  shiny_database <- readRDS("shiny_database.rds")
+} else {
+  shiny_database <- data.table(name = character(),
+                               description = character(),
+                               category = character(),
+                               price = numeric())
 }
 
 # Define UI for the budget application
@@ -66,7 +77,30 @@ ui <- dashboardPage(
   )
 # Define server logic required to draw a histogram
 server <- function(input, output) {
-  
+  # Submit button for newly entered item
+  observeEvent(input$item_button, {
+    
+    if (input$new_or_existing == "Select Existing") {
+      # Gather all relavant data
+      item_data <- list(input$item_name, input$description, input$category, input$price)
+    } else {
+      # Gather all relavant data
+      item_data <- list(input$item_name, input$description, input$new_category, input$price)
+      
+      # Add new category
+      category_list <- c(category_list, input$new_category)
+      
+      # Save categories
+      saveRDS(category_list, "categories.rds")
+    }
+    
+    # Add new row to database
+    shiny_database <- rbind(shiny_database, item_data)
+    
+    # Save database
+    saveRDS(shiny_database, "shiny_database.rds")
+    
+  })
 }
 
 # Run the application 

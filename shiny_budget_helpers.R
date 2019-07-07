@@ -49,3 +49,48 @@ get_date_system_choices <- function() {
   return(date_system_choices)
 }
 
+# Plot by category over time (one for the past week, one for the past month, and one for the past year)
+week_spending <- function(data) {
+  data$date <- as.Date(data$date, format = "%m/%d/%y")
+  data <- data[data$date >= Sys.Date() - 6,]
+  ggplot(data, aes(fill = category, x = date, y = price)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle("Spending Over Time") +
+    theme(text=element_text(face="bold"),
+          axis.text=element_text(size=12),
+          axis.title=element_text(size=14),
+          title=element_text(size=16),
+          # axis.text.x = element_blank(),
+          # axis.ticks.x = element_blank())
+    ) + scale_x_date(date_breaks = "1 day", labels = (date_format("%a")))
+}
+
+month_spending <- function(data) {
+  data$date <- as.Date(data$date, format = "%m/%d/%y")
+  data <- data[data$date >= Sys.Date() - 29,]
+  ggplot(data, aes(fill = category, x = date, y = price)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle("Spending Over Time") +
+    theme(text=element_text(face="bold"),
+          axis.text=element_text(size=12),
+          axis.title=element_text(size=14),
+          title=element_text(size=16),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank()
+    ) + scale_x_date(date_breaks = "1 day", labels = (date_format("%A")))
+}
+
+custom_range_spending <- function(data, start_date, end_date) {
+  data$date <- as.Date(data$date, format = "%m/%d/%y")
+  data <- data[data$date >= start_date & data$date <= end_date,]
+  ggplot(data, aes(fill = category, x = date, y = price)) + 
+    geom_bar(position="dodge", stat="identity") +
+    ggtitle("Spending Over Time") +
+    theme(text=element_text(face="bold"),
+          axis.text=element_text(size=12),
+          axis.title=element_text(size=14),
+          title=element_text(size=16),
+          #axis.text.x = element_blank(),
+          #axis.ticks.x = element_blank()
+    ) + scale_x_date(date_breaks = "1 day", labels = (date_format("%A")))
+}

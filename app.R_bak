@@ -37,7 +37,7 @@ ui <- dashboardPage(
     ),
     dashboardBody(
       shinyDashboardThemes(
-        theme = "blue_gradient"
+        theme = "blue"
       ),
       tabItems(
         tabItem(tabName = "dashboard",
@@ -290,6 +290,10 @@ server <- function(input, output, session) {
     if (values$show_table) {
       custom_range_spending(values$plot_database, input$start_date, input$end_date)
     }
+  })
+  
+  session$onSessionEnded(function() {
+    stopApp()
   })
 }
 

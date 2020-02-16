@@ -53,6 +53,13 @@ get_date_system_choices <- function() {
 week_spending <- function(data) {
   data$date <- as.Date(data$date, format = "%m/%d/%y")
   data <- data[data$date >= Sys.Date() - 6,]
+  df <- sapply(unique(data$date), function(d) {
+    sums_vec <- sapply(unique(data$category), function(x) { 
+      sum(data[data$category == x & data$date == d, "price"])
+    })
+    data.frame(price = sums_vec, category = names(sums_vec), date = rep(date, length(sums_vec)))
+  }, simplify = F)
+  return(df)
   ggplot(data, aes(fill = category, x = date, y = price)) + 
     geom_bar(position="dodge", stat="identity") +
     ggtitle("Spending Over Time") +

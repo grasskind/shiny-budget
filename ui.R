@@ -22,7 +22,7 @@ shinyUI(
     ),
     dashboardBody(
       shinyDashboardThemes(
-        theme = "onenote"
+        theme = "grey_dark"
       ),
       tabItems(
         tabItem(tabName = "dashboard",
@@ -32,18 +32,24 @@ shinyUI(
                          plotOutput("bp_by_category")
                   ),
                   column(6,
-                         tabBox(
-                           selected = "Week",
-                           width = "100%",
-                           tabPanel("Week", plotOutput("past_week", height = "350px")),
-                           tabPanel("Month", plotOutput("past_month", height = "350px")),
-                           tabPanel("Custom Range",
-                                    plotOutput("custom_range_spending", height = "350px"),
-                                    dateInput("start_date", "Start Date", value = Sys.Date() - 6,
-                                              format = "yyyy-mm-dd"),
-                                    dateInput("end_date", "End Date", value = Sys.Date(),
-                                              format = "yyyy-mm-dd"))
+                         plotOutput("monthly_spending"),
+                         splitLayout(
+                           cellWidths = c("50%", "50%"),
+                           selectInput("gp", label = "Category",choices = c()),
+                           selectInput("yr", label = "Year",choices = c())
                          )
+                         # tabBox(
+                         #   selected = "Week",
+                         #   width = "100%",
+                         #   tabPanel("Week", plotOutput("past_week", height = "350px")),
+                         #   tabPanel("Month", plotOutput("past_month", height = "350px")),
+                         #   tabPanel("Custom Range",
+                         #            plotOutput("custom_range_spending", height = "350px"),
+                         #            dateInput("start_date", "Start Date", value = Sys.Date() - 6,
+                         #                      format = "yyyy-mm-dd"),
+                         #            dateInput("end_date", "End Date", value = Sys.Date(),
+                         #                      format = "yyyy-mm-dd"))
+                         # )
                   )
                 )),
         tabItem(tabName = "new_purchase",
@@ -84,6 +90,7 @@ shinyUI(
                                     accept = c(
                                       ".xlsx"
                                     )),
+                          numericInput("sheet", label = "Sheet", value = 1),
                           selectInput("date_format", label = "Date System", choices = date_system_choices, selected = "1900")
                    )
                  ),

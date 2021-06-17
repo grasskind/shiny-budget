@@ -36,8 +36,8 @@ shinyServer(
       
       # update databases
       new_row <- as.data.table(new_item())
-      shiny_database <<- rbind(shiny_database, new_row, stringsAsFactors = F)
-      values$plot_database <- rbind(values$plot_database, new_row, stringsAsFactors = F)
+      shiny_database <<- rbindlist(list(shiny_database, new_row), fill = T)
+      values$plot_database <- rbindlist(list(values$plot_database, new_row), fill = T)
       
       # Save database
       saveRDS(shiny_database, "shiny_database.rds")
@@ -127,7 +127,15 @@ shinyServer(
       )
       
       # read file
-      new_data <- read.xlsx(file_metadata$datapath)
+      validate(
+        need(tryCatch({read.xlsx(file_metadata$datapath, sheet = as.integer(input$sheet))}, 
+                      error = function(x) {return(F)})
+             , "Error loading file, most likely an invalid sheet number")
+      )
+      
+      new_data <- read.xlsx(file_metadata$datapath, sheet = as.integer(input$sheet))
+      
+      
       # check that data has the correct columns
       expected_cols <- c("name", "description", "category", "price", "date")
       validate (
@@ -143,8 +151,8 @@ shinyServer(
       
       # Update databases
       new_rows <- as.data.table(new_data)
-      shiny_database <<- rbind(shiny_database, new_rows, stringsAsFactors = F)
-      values$plot_database <- rbind(values$plot_database, new_rows, stringsAsFactors = F)
+      shiny_database <<- rbindlist(list(shiny_database, new_rows), fill = T)
+      values$plot_database <- rbindlist(list(values$plot_database, new_rows), fill = T)
       
       # Save database
       saveRDS(shiny_database, "shiny_database.rds")
@@ -156,6 +164,8 @@ shinyServer(
     
     # Change choices based on existing categories
     updateSelectInput(session, "category", choices = shiny_database$category)
+    updateSelectInput(session, "gp", choices = shiny_database$category)
+    updateSelectInput(session, "yr", choices = year(as.Date(shiny_database$date, format = "%m/%d/%y")))
     
     # Render the table which is displayed to the user
     output$expense_table <- DT::renderDataTable({
@@ -173,27 +183,12 @@ shinyServer(
     # Render barplot
     output$bp_by_category <- renderPlot({
       if (values$show_table) {
-        barplot_by_category(values$plot_database)
+        barplot_by_category(values$plot_database, input$yr)
       }
     })
     
-    # Render spending over time plots (one for past week, month, or year, depending on the selected tab)
-    output$past_week<- renderPlot({
-      if (values$show_table) {
-        week_spending(values$plot_database)
-      }
-    })
-    
-    output$past_month<- renderPlot({
-      if (values$show_table) {
-        month_spending(values$plot_database)
-      }
-    })
-    
-    output$custom_range_spending<- renderPlot({
-      if (values$show_table) {
-        custom_range_spending(values$plot_database, input$start_date, input$end_date)
-      }
+    output$monthly_spending<- renderPlot({
+        monthly_spending(values$plot_database, input$gp,input$yr)
     })
     
     session$onSessionEnded(function() {

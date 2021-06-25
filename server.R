@@ -8,10 +8,10 @@ source("shiny_budget_helpers.R")
 
 # load data
 shiny_database <- load_db()
-date_system_choices <- get_date_system_choices()
 
 shinyServer(
   function(input, output, session) {
+    
     # reactive database for rendering plots, and boolean to show table only when it's non-empty
     values <- reactiveValues(plot_database = shiny_database, show_table = FALSE, previous_file = "_NA_", add_file = 0)
     
@@ -23,6 +23,32 @@ shinyServer(
         proxy <<- dataTableProxy("expense_table")
         values$show_table <- TRUE
       }
+    })
+
+################################## Data Addition/Changes ##########################################
+    
+    # clear inputs on submit. Also add new categories if needed.
+    reset_inputs <- function() {
+      updateTextInput(session, inputId = "item_name", value = "")
+      updateSelectInput(session, inputId = "new_or_existing", selected = "Select Existing")
+      updateSelectInput(session, inputId = "category", choices = shiny_database$category)
+      updateTextInput(session, inputId = "new_category", value = "")
+      updateNumericInput(session, inputId = "price", value = 0)
+      updateTextInput(session, inputId = "description", value = "")
+    }
+    
+    # Gather data for newly entered item
+    new_item <- reactive({
+      date <- format(Sys.Date(), "%m/%d/%y")
+      if (input$new_or_existing == "Select Existing") {
+        # Gather all relevant data (get category from dropdown menu)
+        item_data <- data.frame(input$item_name, input$description, input$category, input$price, date, stringsAsFactors = F)
+      } else {
+        # Gather all relevant data (get category from text input)
+        item_data <- data.frame(input$item_name, input$description, input$new_category, input$price, date, stringsAsFactors = F)
+      }
+      colnames(item_data) <- c("name", "description", "category", "price", "date")
+      item_data
     })
     
     # Submit button for newly entered item
@@ -47,6 +73,79 @@ shinyServer(
       
     })
     
+    # Stores newly uploaded data 
+    new_data_table <- reactive({
+      # Stop if no file has been selected
+      req(input$file_1)
+      
+      file <- input$file_1
+      
+      ext <- substr(file$datapath, nchar(file$datapath)-4, nchar(file$datapath))
+      
+      validate(
+        need(ext == ".xlsx",
+             "Invalid file extension. Please upload an Excel file (.xlsx extension).")
+        )
+      validate(
+        need(tryCatch({read.xlsx(file$datapath, sheet = as.integer(input$sheet))}, 
+                      error = function(x) {return(F)})
+             , "Error loading file, most likely an invalid sheet number")
+      )
+      
+      # read in data 
+      new_data <- read.xlsx(file$datapath, sheet = as.integer(input$sheet))
+      
+      # check that data has the correct columns
+      expected_cols <- c("name", "description", "category", "price", "date")
+      
+      # check that data has proper columns
+      validate (
+        need(colnames(new_data) == expected_cols, 
+             "Looks like the file isn't in the proper format.\nPlease make you have these columns: name, description, category, price, date.")
+      )
+      
+      # Convert from excel data format to R
+      if (input$date_format == "1900") {
+        new_data$date <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
+      } else {
+        new_data$date <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
+      }
+      
+      new_rows <- as.data.table(new_data)
+      
+      # Check data is complete 
+      validate(
+        need(!any(is.na(new_rows$price)) && is.numeric(new_rows$price), "Price is missing or isn't a number in one or more rows.")
+      )
+      validate(
+        need(!any(is.na(new_rows$category)), "Category is missing in one or more rows.")
+      )
+      validate(
+        need(!any(is.na(new_rows$date)), "Date is missing in one or more rows.")
+      )
+      validate(
+        need(!any(is.na(new_rows$name)), "Name is missing in one or more rows.")
+      )
+      
+      # Remove whitepace around the ends of a category
+      new_rows$category <- trimws(new_rows$category) 
+      new_rows
+    })
+   
+    # Updates both the front end and back-end databases whenever new data is uploaded  
+    observeEvent(new_data_table(), {
+      # Update databases
+      new_rows <- new_data_table()
+      shiny_database <<- rbindlist(list(shiny_database, new_rows), fill = T)
+      values$plot_database <- rbindlist(list(values$plot_database, new_rows), fill = T)
+      
+      # Save database
+      saveRDS(shiny_database, "shiny_database.rds")
+      # Add rows to displayed table
+      values$add_file <- values$add_file + 1
+    })
+    
+    # Direct user changes to data table
     observeEvent(input$expense_table_cell_edit, {
       # Get info about what cell the user changed
       info <- input$expense_table_cell_edit
@@ -65,102 +164,7 @@ shinyServer(
       saveRDS(shiny_database, "shiny_database.rds")
     })
     
-    
-    ############################### Functions ###################################
-    
-    # update database with new data either from file upload or new item submit
-    update_db <- function(input_db) {
-      # Add new row to database
-      shiny_database <<- rbind(shiny_database, input_db)
-      
-      # Save database
-      saveRDS(shiny_database, "shiny_database.rds")
-    }
-    
-    # clear inputs on submit. Also add new categories if needed.
-    reset_inputs <- function() {
-      updateTextInput(session, inputId = "item_name", value = "")
-      updateSelectInput(session, inputId = "new_or_existing", selected = "Select Existing")
-      updateSelectInput(session, inputId = "category", choices = shiny_database$category)
-      updateTextInput(session, inputId = "new_category", value = "")
-      updateNumericInput(session, inputId = "price", value = 0)
-      updateTextInput(session, inputId = "description", value = "")
-    }
-    
-    ############################### Objects #####################################
-    
-    # Gather data for newly entered item
-    new_item <- reactive({
-      date <- format(Sys.Date(), "%m/%d/%y")
-      if (input$new_or_existing == "Select Existing") {
-        # Gather all relevant data (get category from dropdown menu)
-        item_data <- data.frame(input$item_name, input$description, input$category, input$price, date, stringsAsFactors = F)
-      } else {
-        # Gather all relevant data (get category from text input)
-        item_data <- data.frame(input$item_name, input$description, input$new_category, input$price, date, stringsAsFactors = F)
-      }
-      colnames(item_data) <- c("name", "description", "category", "price", "date")
-      item_data
-    })
-    
-    # Contents of the uploaded file. Displays error message if file is invalid
-    observe({
-      
-      # get file metadata (size, path to file, etc)
-      file_metadata <- input$file_metadata
-      
-      validate(
-        need(file_metadata != values$previous_file, "")
-      )
-      
-      # set to prevent file from being uploaded in a never-ending loop
-      values$previous_file <- file_metadata
-      
-      # check that a file is selected 
-      validate(
-        need(file_metadata, "")
-      )
-      # check that file has the .xlsx extension
-      validate(
-        need(substr(file_metadata, nchar(file_metadata)-4, nchar(file_metadata)) == ".xlsx",
-             "Invalid file extension. Please upload an Excel file (.xlsx extension).")
-      )
-      
-      # read file
-      validate(
-        need(tryCatch({read.xlsx(file_metadata$datapath, sheet = as.integer(input$sheet))}, 
-                      error = function(x) {return(F)})
-             , "Error loading file, most likely an invalid sheet number")
-      )
-      
-      new_data <- read.xlsx(file_metadata$datapath, sheet = as.integer(input$sheet))
-      
-      
-      # check that data has the correct columns
-      expected_cols <- c("name", "description", "category", "price", "date")
-      validate (
-        need(colnames(new_data) == expected_cols, 
-             "Looks like the file isn't in the proper format.\nPlease make you have these columns: name, description, category, price, date.")
-      )
-      # Convert from excel data format to R
-      if (input$date_format == "1900") {
-        new_data$date <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
-      } else {
-        new_data$date <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
-      }
-      
-      # Update databases
-      new_rows <- as.data.table(new_data)
-      shiny_database <<- rbindlist(list(shiny_database, new_rows), fill = T)
-      values$plot_database <- rbindlist(list(values$plot_database, new_rows), fill = T)
-      
-      # Save database
-      saveRDS(shiny_database, "shiny_database.rds")
-      # Add rows to displayed table
-      values$add_file <- values$add_file + 1
-    })
-    
-    ############################### Outputs #####################################
+####################################### Outputs ####################################################
     
     # Change choices based on existing categories
     updateSelectInput(session, "category", choices = shiny_database$category)
@@ -180,15 +184,30 @@ shinyServer(
       }
     }, server = FALSE)
     
-    # Render barplot
+    # Render average per category bar plot
     output$bp_by_category <- renderPlot({
       if (values$show_table) {
         barplot_by_category(values$plot_database, input$yr)
       }
     })
     
+    # Render spending over time line plot
     output$monthly_spending<- renderPlot({
-        monthly_spending(values$plot_database, input$gp,input$yr)
+      if (values$show_table) {
+        monthly_spending(values$plot_database, input$gp, input$yr)
+      }
+    })
+    
+    # Render total spending in a given month bar plot
+    output$month_totals_plot <- renderPlot({
+      if (values$show_table) {
+      month_totals_bp(values$plot_database,input$mon, input$yr)
+      }
+    })
+    
+    # Render a datatable showing the newly uploaded data 
+    output$upload_table <- renderTable({
+      new_data_table()
     })
     
     session$onSessionEnded(function() {

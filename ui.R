@@ -2,9 +2,9 @@ library(shiny)
 library(shinydashboard)
 library(dashboardthemes)
 
-date_system_choices <- c("1900", "1904")
-names(date_system_choices) <- c("1900 (Windows)", "1904 (Mac)")
+source("shiny_budget_helpers.R")
 
+DATE_SYSTEM_CHOICES <- get_date_system_choices()
 
 # UI for Shiny Budget App
 shinyUI(
@@ -22,35 +22,30 @@ shinyUI(
     ),
     dashboardBody(
       shinyDashboardThemes(
-        theme = "grey_dark"
+        theme = "onenote"
       ),
       tabItems(
         tabItem(tabName = "dashboard",
-                DT::dataTableOutput("expense_table"),
                 fluidRow(
                   column(6,
-                         plotOutput("bp_by_category")
+                         tabBox(
+                           selected = "Average Spending",
+                           width = "100%",
+                           tabPanel("Average Spending", plotOutput("bp_by_category"),
+                                    selectInput("yr", label = "Year",choices = c()))
+                         )
                   ),
                   column(6,
-                         plotOutput("monthly_spending"),
-                         splitLayout(
-                           cellWidths = c("50%", "50%"),
-                           selectInput("gp", label = "Category",choices = c()),
-                           selectInput("yr", label = "Year",choices = c())
+                         tabBox(
+                           selected = "Over Time",
+                           width = "100%",
+                           tabPanel("Over Time", plotOutput("monthly_spending"),
+                                    selectInput("gp", label = "Category",choices = c())),
+                           tabPanel("Total", plotOutput("month_totals_plot"),
+                                    selectInput("mon", label = "Month", choices = month.name))
                          )
-                         # tabBox(
-                         #   selected = "Week",
-                         #   width = "100%",
-                         #   tabPanel("Week", plotOutput("past_week", height = "350px")),
-                         #   tabPanel("Month", plotOutput("past_month", height = "350px")),
-                         #   tabPanel("Custom Range",
-                         #            plotOutput("custom_range_spending", height = "350px"),
-                         #            dateInput("start_date", "Start Date", value = Sys.Date() - 6,
-                         #                      format = "yyyy-mm-dd"),
-                         #            dateInput("end_date", "End Date", value = Sys.Date(),
-                         #                      format = "yyyy-mm-dd"))
-                         # )
-                  )
+                  ),
+                  DT::dataTableOutput("expense_table")
                 )),
         tabItem(tabName = "new_purchase",
                 fluidRow(
@@ -81,21 +76,22 @@ shinyUI(
                   )
                 )
         ),
-        
         tabItem( tabName = "data_upload",
                  fluidRow(
                    column(6,
-                          fileInput("file_metadata", 
+                          fileInput("file_1", 
                                     label = "Data File",
                                     accept = c(
                                       ".xlsx"
                                     )),
                           numericInput("sheet", label = "Sheet", value = 1),
-                          selectInput("date_format", label = "Date System", choices = date_system_choices, selected = "1900")
-                   )
-                 ),
-                 tableOutput(
-                   "file_contents"
+                          selectInput("date_format", 
+                                      label = "Date System",
+                                      choices = DATE_SYSTEM_CHOICES,
+                                      selected = "1900")
+                   ),
+                   column(6,
+                          tableOutput("upload_table"))
                  )
         )
       )

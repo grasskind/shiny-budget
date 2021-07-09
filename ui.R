@@ -15,6 +15,7 @@ shinyUI(
     dashboardSidebar(
       sidebarMenu(
         menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+        menuItem("Budget", tabName = "budget_tab", icon = icon("wallet")),
         menuItem("New Purchase", tabName = "new_purchase", icon = icon("receipt")),
         menuItem("Upload Data", tabName = "data_upload", icon = icon("file-upload"))
       )
@@ -47,6 +48,13 @@ shinyUI(
                   ),
                   DT::dataTableOutput("expense_table")
                 )),
+        tabItem(tabName = "budget_tab", 
+                fluidRow(
+                  column(6,
+                         plotOutput("remaining_budget_plot")),
+                  column(6,
+                         tableOutput("current_month_spending_table"))
+                )),
         tabItem(tabName = "new_purchase",
                 fluidRow(
                   column(6,
@@ -76,22 +84,33 @@ shinyUI(
                   )
                 )
         ),
-        tabItem( tabName = "data_upload",
-                 fluidRow(
-                   column(6,
-                          fileInput("file_1", 
-                                    label = "Data File",
+        tabItem(tabName = "data_upload",
+                 sidebarLayout(
+                   sidebarPanel(
+                    h3("Spending Tracker"),
+                    fileInput("file_1", 
+                                    label = "Upload",
                                     accept = c(
                                       ".xlsx"
                                     )),
-                          numericInput("sheet", label = "Sheet", value = 1),
-                          selectInput("date_format", 
-                                      label = "Date System",
-                                      choices = DATE_SYSTEM_CHOICES,
-                                      selected = "1900")
+                    numericInput("sheet", label = "Sheet", value = 1),
+                    selectInput("date_format", 
+                                label = "Date System",
+                                choices = DATE_SYSTEM_CHOICES,
+                                selected = "1900"),
+                    downloadButton("spending_tracker_template", label = "Download Template"),
+                    h3("Budget"),
+                    fileInput("file_2", 
+                                    label = "Upload",
+                                    accept = c(
+                                      ".xlsx"
+                                   )),
+                    downloadButton("budget_template", label = "Download Template")
                    ),
-                   column(6,
-                          tableOutput("upload_table"))
+                   mainPanel(
+                     tableOutput("upload_table"),
+                     tableOutput("budget_upload_table")
+                   )
                  )
         )
       )

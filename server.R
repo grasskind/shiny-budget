@@ -13,7 +13,10 @@ shinyServer(
   function(input, output, session) {
     
     # reactive database for rendering plots, and boolean to show table only when it's non-empty
-    values <- reactiveValues(plot_database = shiny_database, show_table = FALSE, previous_file = "_NA_", add_file = 0)
+    values <- reactiveValues(plot_database = shiny_database, 
+                             show_table = FALSE, 
+                             add_file = 0,
+                             default_budget = F)
     
     proxy <- "Set as proxy for item data when table is non-empty"
     
@@ -27,7 +30,7 @@ shinyServer(
 
 ################################## Data Addition/Changes ##########################################
     
-    # clear inputs on submit. Also add new categories if needed.
+    # Clear inputs on submit. Also add new categories if needed.
     reset_inputs <- function() {
       updateTextInput(session, inputId = "item_name", value = "")
       updateSelectInput(session, inputId = "new_or_existing", selected = "Select Existing")
@@ -141,6 +144,7 @@ shinyServer(
       
       # Save database
       saveRDS(shiny_database, "shiny_database.rds")
+      
       # Add rows to displayed table
       values$add_file <- values$add_file + 1
     })
@@ -164,16 +168,113 @@ shinyServer(
       saveRDS(shiny_database, "shiny_database.rds")
     })
     
-####################################### Outputs ####################################################
+    # Stores budget spreadsheet
+    budget <- reactive({
+      if(is.null(input$file_2)) {
+        budget_df <- data.table(category = unique(values$plot_database$category),
+                   budget = 0)
+        values$default_budget <- T
+        } else {
+          values$default_budget <- F
+          
+          # Stop if no file has been selected
+          req(input$file_2)
+          
+          file <- input$file_2
+          
+          ext <- substr(file$datapath, nchar(file$datapath)-4, nchar(file$datapath))
+          
+          validate(
+            need(ext == ".xlsx",
+                 "Invalid file extension. Please upload an Excel file (.xlsx extension).")
+            )
+          validate(
+            need(tryCatch({read.xlsx(file$datapath)}, 
+                          error = function(x) {return(F)})
+                 , "Error loading file.")
+          )
+          
+          # read in data 
+          new_data <- read.xlsx(file$datapath)
+          
+          # check that data has proper columns
+          validate (
+            need(colnames(new_data) == c("category", "budget"), 
+                 "Looks like the file isn't in the proper format.\nPlease make you have these columns: category, budget.")
+          )
+          
+          new_rows <- as.data.table(new_data)
+          
+          # Check data is complete 
+          validate(
+            need(!any(is.na(new_rows$budget)) && is.numeric(new_rows$budget), "Budget is missing or isn't a number in one or more rows.")
+          )
+          validate(
+            need(!any(is.na(new_rows$category)), "Category is missing in one or more rows.")
+          )
+          
+          # Remove whitepace around the ends of a category
+          new_rows$category <- trimws(new_rows$category) 
+          new_rows  
+      }
+      
+    })
+ 
+    
+#################################### Template Downloads ###########################################    
+   
+    # Download spending tracker template
+    output$spending_tracker_template <- downloadHandler(
+      filename <- function() {
+        "spending_tracker_template.xlsx"
+      },
+      content <- function(file) {
+        temp <- data.table(name = character(),
+                   description = character(),
+                   category = character(),
+                   price = numeric(),
+                   date = character())
+        write.xlsx(temp, file)
+      } 
+    )
+    
+    # Download budget template
+    output$budget_template <- downloadHandler(
+      filename <- function() {
+        "budget_template.xlsx"
+      },
+      content <- function(file) {
+        temp <- data.table(category = unique(values$plot_database$category),
+                   budget = 0)
+        write.xlsx(temp, file)
+      } 
+    ) 
+      
+    
+###################################################################################################
+##                                                                                               ## 
+####################################### Outputs ###################################################
+##                                                                                               ## 
+###################################################################################################
+    
+    
+####################################### Update Inputs #############################################
     
     # Change choices based on existing categories
-    updateSelectInput(session, "category", choices = shiny_database$category)
-    updateSelectInput(session, "gp", choices = shiny_database$category)
-    updateSelectInput(session, "yr", choices = year(as.Date(shiny_database$date, format = "%m/%d/%y")))
+    observe({
+     updateSelectInput(session, "category", choices = values$plot_database$category)
+     updateSelectInput(session, "gp", choices = values$plot_database$category)
+     updateSelectInput(session, "yr", choices = year(as.Date(values$plot_database$date, format = "%m/%d/%y")))
+    })
+    
+####################################### Dashboard #################################################
     
     # Render the table which is displayed to the user
     output$expense_table <- DT::renderDataTable({
-      rerender <- values$add_file
+      
+      # Re-render expense table when a new file is uploaded
+      re_render <- values$add_file
+      
       if (values$show_table) {
         DT::datatable(shiny_database,
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
@@ -204,10 +305,31 @@ shinyServer(
       month_totals_bp(values$plot_database,input$mon, input$yr)
       }
     })
+
+ 
+####################################### Budget ####################################################
+    
+    # Render the budget barplot
+    output$remaining_budget_plot <- renderPlot({
+      monthly_budget_remaining(values$plot_database, budget())
+    })
+    
+####################################### Upload Data ###############################################
     
     # Render a datatable showing the newly uploaded data 
     output$upload_table <- renderTable({
       new_data_table()
+    })
+    
+    # Render a datatable showing the uploaded budget 
+    output$budget_upload_table <- renderTable({
+      new_budget <- budget()
+      if(!values$default_budget) {
+        new_budget
+      } else {
+        return()
+      }
+        
     })
     
     session$onSessionEnded(function() {

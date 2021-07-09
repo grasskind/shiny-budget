@@ -131,6 +131,38 @@ month_totals_bp <- function(data, mon, year) {
   
 }
 
+monthly_budget_remaining <- function(data, budget_df) {
+  mon.index <- as.numeric(data.table::month(Sys.Date()))
+  year.index <- as.numeric(data.table::year(Sys.Date()))
+  
+  # Add month and year columns
+  data$month <- data.table::month(as.Date(data$date, format = "%m/%d/%y"))
+  data$yea <- data.table::year(as.Date(data$date, format = "%m/%d/%y"))
+  
+  # Make a new dataframe with the spending per category
+  pdata <- data[month == mon.index & yea == year.index, .(month_total = sum(price)), by = category]
+  
+  plot_df <- merge(pdata, budget_df, by = "category") 
+  plot_df$remaining <- plot_df$budget - plot_df$month_total 
+  
+  # Order categories by spending
+  plot_df$category <- factor(plot_df$category,
+                           levels = plot_df$category[order(plot_df$month_total,decreasing = T)])
+  
+  ggplot(plot_df, aes(x = category, y = month_total, fill = category)) + 
+    geom_col() +
+    geom_point(mapping = aes(x = category, y = budget)) + 
+    ggtitle(paste0("Spending in ", month.abb[mon.index]," of ", year.index, ", Total: ", sum(plot_df$month_total))) +
+    xlab("Category") +
+    ylab("Spending ($)") +
+    theme(text=element_text(face="bold"),
+          axis.text=element_text(size=12),
+          axis.title=element_text(size=14),
+          title=element_text(size=16),
+          axis.text.x = element_blank(),
+          axis.ticks.x = element_blank()) +
+    geom_text(aes(label=round(remaining)), position=position_dodge(width=0.9), vjust=-0.25)
+}
 
 ####################################### Archived ##################################################
 

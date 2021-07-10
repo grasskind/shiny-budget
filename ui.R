@@ -61,16 +61,21 @@ shinyUI(
                   column(6,
                          textInput("item_name", label = "Item Name", placeholder = "Ex. Detective Pikachu"),
                          
-                         selectInput("new_or_existing", label = "Category", choices = c("Select Existing", "Create New")),
+                         selectInput("new_or_existing", label = "Category", choices = c("Select From Budget", "Select Existing", "Create New")),
                          
                          conditionalPanel(
                            condition = "input.new_or_existing === 'Select Existing'",
-                           selectInput("category", label = "Name", selected = "Categories", choices = c())
+                           selectInput("category", label = "Name", choices = c())
                          ),
                          
                          conditionalPanel(
                            condition = "input.new_or_existing === 'Create New'",
                            textInput("new_category", label = "Name")
+                         ),
+                         
+                         conditionalPanel(
+                           condition = "input.new_or_existing === 'Select From Budget'",
+                           selectInput("budget_category", label = "Name", choices = c())
                          )
                          
                   ),

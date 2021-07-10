@@ -39,7 +39,7 @@ shinyServer(
     # Clear inputs on submit. Also add new categories if needed.
     reset_inputs <- function() {
       updateTextInput(session, inputId = "item_name", value = "")
-      updateSelectInput(session, inputId = "new_or_existing", selected = "Select Existing")
+      updateSelectInput(session, inputId = "new_or_existing", selected = "Select From Budget")
       updateSelectInput(session, inputId = "category", choices = isolate(values$plot_database$category))
       updateTextInput(session, inputId = "new_category", value = "")
       updateNumericInput(session, inputId = "price", value = 0)
@@ -78,6 +78,9 @@ shinyServer(
       if (input$new_or_existing == "Select Existing") {
         # Gather all relevant data (get category from dropdown menu)
         item_data <- data.frame(input$item_name, input$description, input$category, input$price, date, stringsAsFactors = F)
+      } else if (input$new_or_existing == "Select From Budget") {
+        # Gather all relevant data (get category from dropdown menu)
+        item_data <- data.frame(input$item_name, input$description, input$budget_category, input$price, date, stringsAsFactors = F)
       } else {
         # Gather all relevant data (get category from text input)
         item_data <- data.frame(input$item_name, input$description, input$new_category, input$price, date, stringsAsFactors = F)
@@ -99,7 +102,7 @@ shinyServer(
       new_row <- as.data.table(new_item())
       values$plot_database <- rbindlist(list(values$plot_database, new_row), fill = T)
       
-      if (input$new_or_existing == "Create New") {
+      if (input$new_or_existing %in% c("Create New", "Select Existing")) {
         add_category_to_budget(new_row$category)
       } 
       
@@ -309,6 +312,7 @@ shinyServer(
     # Change choices based on existing categories
     observe({
      updateSelectInput(session, "category", choices = values$plot_database$category)
+     updateSelectInput(session, "budget_category", choices = values$session_budget$category)
      updateSelectInput(session, "gp", choices = values$plot_database$category)
      updateSelectInput(session, "yr", choices = year(as.Date(values$plot_database$date, format = "%m/%d/%y")))
     })
@@ -388,7 +392,11 @@ shinyServer(
     session$onSessionEnded(function() {
       # Save data changes from this session
       shiny_database <- isolate(values$plot_database)
+      shiny_budget <- isolate(values$session_budget)
+      
+      saveRDS(shiny_budget, "shiny_budget.rds")
       saveRDS(shiny_database, "shiny_database.rds")
+      
       stopApp()
     })
   }

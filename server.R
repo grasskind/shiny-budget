@@ -15,7 +15,7 @@ shinyServer(
     # reactive database for rendering plots, and boolean to show table only when it's non-empty
     values <- reactiveValues(plot_database = shiny_database, 
                              show_table = FALSE, 
-                             add_file = 0,
+                             rerender_expense_table = 0,
                              default_budget = F)
     
     proxy <- "Set as proxy for item data when table is non-empty"
@@ -67,9 +67,6 @@ shinyServer(
       new_row <- as.data.table(new_item())
       shiny_database <<- rbindlist(list(shiny_database, new_row), fill = T)
       values$plot_database <- rbindlist(list(values$plot_database, new_row), fill = T)
-      
-      # Save database
-      saveRDS(shiny_database, "shiny_database.rds")
       
       # clear inputs for a new submission
       reset_inputs()
@@ -142,11 +139,8 @@ shinyServer(
       shiny_database <<- rbindlist(list(shiny_database, new_rows), fill = T)
       values$plot_database <- rbindlist(list(values$plot_database, new_rows), fill = T)
       
-      # Save database
-      saveRDS(shiny_database, "shiny_database.rds")
-      
       # Add rows to displayed table
-      values$add_file <- values$add_file + 1
+      values$rerender_expense_table <- values$rerender_expense_table + 1
     })
     
     # Direct user changes to data table
@@ -164,8 +158,15 @@ shinyServer(
       # Change the databases
       shiny_database[i,c(j+1)] <<- value
       values$plot_database[i,c(j+1)] <- value
-      # Save changes
-      saveRDS(shiny_database, "shiny_database.rds")
+    })
+    
+    # Delete selected rows from data table
+    observeEvent(input$delete_selected, {
+      shiny_database <<- shiny_database[-input$expense_table_rows_selected,]
+      values$plot_database <- values$plot_database[-input$expense_table_rows_selected,]
+      
+      # Add rows to displayed table
+      values$rerender_expense_table <- values$rerender_expense_table + 1
     })
     
     # Stores budget spreadsheet
@@ -174,6 +175,7 @@ shinyServer(
         budget_df <- data.table(category = unique(values$plot_database$category),
                    budget = 0)
         values$default_budget <- T
+        return(budget_df)
         } else {
           values$default_budget <- F
           
@@ -273,7 +275,7 @@ shinyServer(
     output$expense_table <- DT::renderDataTable({
       
       # Re-render expense table when a new file is uploaded
-      re_render <- values$add_file
+      re_render <- values$rerender_expense_table
       
       if (values$show_table) {
         DT::datatable(shiny_database,
@@ -311,6 +313,7 @@ shinyServer(
     
     # Render the budget barplot
     output$remaining_budget_plot <- renderPlot({
+      print(budget())
       monthly_budget_remaining(values$plot_database, budget())
     })
     
@@ -333,6 +336,7 @@ shinyServer(
     })
     
     session$onSessionEnded(function() {
+      saveRDS(shiny_database, "shiny_database.rds")
       stopApp()
     })
   }

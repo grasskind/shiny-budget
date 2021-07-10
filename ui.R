@@ -46,7 +46,8 @@ shinyUI(
                                     selectInput("mon", label = "Month", choices = month.name))
                          )
                   ),
-                  DT::dataTableOutput("expense_table")
+                  DT::dataTableOutput("expense_table"),
+                  actionButton("delete_selected", "Delete Selected Rows")
                 )),
         tabItem(tabName = "budget_tab", 
                 fluidRow(

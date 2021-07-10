@@ -142,7 +142,9 @@ monthly_budget_remaining <- function(data, budget_df) {
   # Make a new dataframe with the spending per category
   pdata <- data[month == mon.index & yea == year.index, .(month_total = sum(price)), by = category]
   
-  plot_df <- merge(pdata, budget_df, by = "category") 
+  # Set categories that haven't been spent on this month yet to 0
+  plot_df <- merge(pdata, budget_df, by = "category", all.y = T)
+  plot_df[is.na(plot_df$month_total), "month_total"] <- 0
   plot_df$remaining <- plot_df$budget - plot_df$month_total 
   
   # Order categories by spending

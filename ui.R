@@ -54,7 +54,7 @@ shinyUI(
                   column(6,
                          plotOutput("remaining_budget_plot")),
                   column(6,
-                         tableOutput("current_month_spending_table"))
+                         DT::dataTableOutput("current_budget_table"))
                 )),
         tabItem(tabName = "new_purchase",
                 fluidRow(

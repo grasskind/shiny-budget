@@ -83,6 +83,7 @@ shinyUI(
                          numericInput("price", label = "Price", value = 0),
                          
                          textInput("description", label = "Description", placeholder = "Ex. Movie ticket and popcorn"),
+                         dateInput("new_item_date", "Date", format = "mm/dd/yy"),
                          br(),
                          h5(""),
                          

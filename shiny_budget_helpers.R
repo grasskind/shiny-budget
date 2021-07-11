@@ -10,7 +10,9 @@ load_db <- function() {
                                  description = character(),
                                  category = character(),
                                  price = numeric(),
-                                 date = character())
+                                 date = character(),
+                                 month = numeric(),
+                                 year = numeric())
   }
   
   # Do the same for the budget 

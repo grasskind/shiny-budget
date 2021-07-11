@@ -74,18 +74,30 @@ shinyServer(
     
     # Gather data for newly entered item
     new_item <- reactive({
-      date <- format(Sys.Date(), "%m/%d/%y")
+      date <- format(input$new_item_date, "%m/%d/%y")
+      
+      # Get month/year
+      mon.index <- as.numeric(data.table::month(format(input$new_item_date, "%Y-%m-%d")))
+      year.index <- as.numeric(data.table::year(format(input$new_item_date, "%Y-%m-%d")))
+      
       if (input$new_or_existing == "Select Existing") {
-        # Gather all relevant data (get category from dropdown menu)
-        item_data <- data.frame(input$item_name, input$description, input$category, input$price, date, stringsAsFactors = F)
+        category <- input$category
       } else if (input$new_or_existing == "Select From Budget") {
-        # Gather all relevant data (get category from dropdown menu)
-        item_data <- data.frame(input$item_name, input$description, input$budget_category, input$price, date, stringsAsFactors = F)
+        category <- input$budget_category
       } else {
-        # Gather all relevant data (get category from text input)
-        item_data <- data.frame(input$item_name, input$description, input$new_category, input$price, date, stringsAsFactors = F)
+        category <- input$new_category
       }
-      colnames(item_data) <- c("name", "description", "category", "price", "date")
+      
+      # Gather all relevant data
+      item_data <- data.frame(input$item_name,
+                              input$description,
+                              category,
+                              input$price,
+                              date,
+                              mon.index,
+                              year.index,
+                              stringsAsFactors = F)
+      colnames(item_data) <- c("name", "description", "category", "price", "date", "month", "year")
       item_data
     })
     
@@ -165,6 +177,9 @@ shinyServer(
         need(!any(is.na(new_rows$name)), "Name is missing in one or more rows.")
       )
       
+      new_rows$month <- data.table::month(format(as.Date(new_rows$date, format = "%m/%d/%y"), "%Y-%m-%d"))
+      new_rows$year <- data.table::year(format(as.Date(new_rows$date, format = "%m/%d/%y"), "%Y-%m-%d"))
+      
       # Remove whitepace around the ends of a category
       new_rows$category <- trimws(new_rows$category) 
       new_rows
@@ -199,8 +214,8 @@ shinyServer(
       # Change the database
       values$plot_database[i,c(j+1)] <- value
       
-      # If category name was modified, add it to budget
-      if (colnames(values$plot_database)[j+1] == "category") {
+      # If category or date was modified, check if any categories need to be added to budget
+      if (colnames(values$plot_database)[j+1] %in% c("category", "date")) {
         add_missing_categories_to_budget()
       }
     })
@@ -328,10 +343,12 @@ shinyServer(
       if (values$show_table) {
         DT::datatable(isolate(values$plot_database),
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 5
+                                     pageLength = 5,
+                                     columnDefs = list(list(visible = F, targets = c(5,6)))
                       ),
                       rownames = F,
-                      editable = 'cell')
+                      editable = list(target = "cell", disable = list(columns = c(4)))
+        )
       }
     }, server = FALSE)
     

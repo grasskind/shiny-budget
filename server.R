@@ -22,9 +22,11 @@ shinyServer(
     values <- reactiveValues(plot_database = shiny_database, 
                              session_budget = shiny_budget,
                              show_table = FALSE, 
-                             rerender_expense_table = 0)
+                             rerender_expense_table = 0,
+                             rerender_budget_table = 0)
     
     proxy <- "Set as proxy for item data when table is non-empty"
+    budget_proxy <- dataTableProxy("current_budget_table")
     
     # Set proxy just once, only if table was previously not shown because it was empty
     observe({
@@ -154,13 +156,23 @@ shinyServer(
              "Looks like the file isn't in the proper format.\nPlease make you have these columns: name, description, category, price, date.")
       )
       
+      validate (
+        need(tryCatch({
+          if (input$date_format == "1900") {
+            new_data$date <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
+          } else {
+            new_data$date <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
+          }
+        },error = function(x) return(F)),
+        "One or more dates were in the wrong format")
+      )
+      
       # Convert from excel data format to R
       if (input$date_format == "1900") {
         new_data$date <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
       } else {
         new_data$date <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
       }
-      
       new_rows <- as.data.table(new_data)
       
       # Check data is complete 
@@ -195,29 +207,9 @@ shinyServer(
       # Update budget
       add_missing_categories_to_budget()
       
-      # Add rows to displayed table
+      # Add rows to displayed table and budget
       values$rerender_expense_table <- values$rerender_expense_table + 1
-    })
-    
-    # Direct user changes to data table
-    observeEvent(input$expense_table_cell_edit, {
-      # Get info about what cell the user changed
-      info <- input$expense_table_cell_edit
-      i <- info$row
-      j <- info$col
-      v <- info$value
-      # Convert input value to the proper type
-      colname <- colnames(values$plot_database)[j + 1]
-      coltype <- eval(parse(text = paste0("class(","values$plot_database$", colname,")")))
-      value <- eval(parse(text = paste0("as.", coltype, "(v)")))
-      
-      # Change the database
-      values$plot_database[i,c(j+1)] <- value
-      
-      # If category or date was modified, check if any categories need to be added to budget
-      if (colnames(values$plot_database)[j+1] %in% c("category", "date")) {
-        add_missing_categories_to_budget()
-      }
+      values$rerender_budget_table <- values$rerender_budget_table + 1
     })
     
     # Delete selected rows from data table
@@ -281,9 +273,55 @@ shinyServer(
       # Add in any categories that were spent on this month but aren't included in the budget
       add_missing_categories_to_budget()
       
+      # Re-render displayed budget
+      values$rerender_budget_table <- values$rerender_budget_table + 1
     })
     
- 
+    # Delete selected rows from budget table 
+    observeEvent(input$delete_selected_budget, {
+      if (!is.null(input$current_budget_table_rows_selected)) {
+        values$session_budget <- values$session_budget[-input$current_budget_table_rows_selected,]
+        # Re-render displayed budget
+        values$rerender_budget_table <- values$rerender_budget_table + 1
+      }
+      
+    })
+    
+    # Gather data for newly entered category
+    new_budget_category <- reactive({
+      # Gather all relevant data
+      item_data <- data.frame(input$user_add_budget_category,
+                              input$user_add_budget_price,
+                              stringsAsFactors = F)      
+      colnames(item_data) <- c("category", "budget")
+      item_data
+    })
+    
+    # Add new category to budget
+    observeEvent(input$user_add_budget_category_button, {
+      # Add new row to the displayed budget table
+      budget_proxy %>% addRow(new_budget_category())
+      
+      # Update database
+      new_row <- as.data.table(new_budget_category())
+      values$session_budget <- rbindlist(list(values$session_budget, new_row), fill = T)
+      
+      # Reset inputs
+      updateTextInput(session, inputId = "user_add_budget_category", value = "")
+      updateNumericInput(session, inputId = "user_add_budget_price", value = 0)
+    })
+    
+    # Record user changes to budget
+    observeEvent(input$current_budget_table_cell_edit, {
+      # Get info about what cell the user changed
+      info <- input$current_budget_table_cell_edit
+      i <- info$row
+      v <- info$value
+      value <- as.numeric(v)
+      
+      # Change the database
+      values$session_budget[i,"budget"] <- value
+    })
     
 #################################### Template Downloads ###########################################    
    
@@ -337,18 +375,17 @@ shinyServer(
     # Render the table which is displayed to the user
     output$expense_table <- DT::renderDataTable({
       
-      # Re-render expense table when a new file is uploaded
+      # Re-render expense table 
       re_render <- values$rerender_expense_table
       
       if (values$show_table) {
         DT::datatable(isolate(values$plot_database),
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 5,
-                                     columnDefs = list(list(visible = F, targets = c(5,6)))
+                                     pageLength = 5
+                                     #columnDefs = list(list(visible = F, targets = c(5,6)))
                       ),
                       rownames = F,
-                      editable = list(target = "cell", disable = list(columns = c(4)))
-        )
+                      editable = F)
       }
     }, server = FALSE)
     
@@ -383,15 +420,13 @@ shinyServer(
     
     # Table to Display Budget
     output$current_budget_table <- DT::renderDataTable({
-      
-      if (values$show_table) {
-        DT::datatable(values$session_budget,
-                      options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 5
-                      ),
-                      rownames = F,
-                      editable = 'cell')
-      }
+      re_render <- values$rerender_budget_table
+      DT::datatable(isolate(values$session_budget),
+                    options = list(lengthMenu = c(5, 10, 20, 50, 100),
+                                   pageLength = 10
+                    ),
+                    rownames = F,
+                    editable = list(target = 'cell', disable = list(columns = 0))) 
     }, server = FALSE)
     
 ####################################### Upload Data ###############################################

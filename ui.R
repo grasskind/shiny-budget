@@ -54,7 +54,16 @@ shinyUI(
                   column(6,
                          plotOutput("remaining_budget_plot")),
                   column(6,
-                         DT::dataTableOutput("current_budget_table"))
+                         DT::dataTableOutput("current_budget_table"),
+                         splitLayout(
+                           cellWidths = c("50%", "50%"),
+                           actionButton("delete_selected_budget", "Delete Selected Rows"),
+                           div(
+                             textInput("user_add_budget_category", "Category"),
+                             numericInput("user_add_budget_price", "Budget", value = 0),
+                             actionButton("user_add_budget_category_button", "Add Category"))
+                           )
+                         )
                 )),
         tabItem(tabName = "new_purchase",
                 fluidRow(

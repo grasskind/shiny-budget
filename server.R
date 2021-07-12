@@ -11,6 +11,7 @@ input_data <- load_db()
 shiny_database <- input_data[[1]]
 shiny_budget <- input_data[[2]]
 shiny_palette <- input_data[[3]]
+shiny_color_choices <- input_data[[4]]
 
 shinyServer(
   function(input, output, session) {
@@ -19,8 +20,9 @@ shinyServer(
     # plot_database: Stores session database 
     # show_table: Don't show table when there's no data
     # rerender_expense_table: Re-render expense table when rows are deleted or a new data file is uploaded 
-    values <- reactiveValues(plot_database = shiny_database, 
+    values <- reactiveValues(session_database = shiny_database, 
                              session_budget = shiny_budget,
+                             session_color_choices = shiny_color_choices,
                              show_table = FALSE, 
                              rerender_expense_table = 0,
                              rerender_budget_table = 0)
@@ -30,7 +32,7 @@ shinyServer(
     
     # Set proxy just once, only if table was previously not shown because it was empty
     observe({
-      if (!values$show_table && values$plot_database[,.N] > 0) {
+      if (!values$show_table && values$session_database[,.N] > 0) {
         proxy <<- dataTableProxy("expense_table")
         values$show_table <- TRUE
       }
@@ -42,7 +44,7 @@ shinyServer(
     reset_inputs <- function() {
       updateTextInput(session, inputId = "item_name", value = "")
       updateSelectInput(session, inputId = "new_or_existing", selected = "Select From Budget")
-      updateSelectInput(session, inputId = "category", choices = isolate(values$plot_database$category))
+      updateSelectInput(session, inputId = "category", choices = isolate(values$session_database$category))
       updateTextInput(session, inputId = "new_category", value = "")
       updateNumericInput(session, inputId = "price", value = 0)
       updateTextInput(session, inputId = "description", value = "")
@@ -63,13 +65,26 @@ shinyServer(
       year.index <- as.numeric(data.table::year(Sys.Date()))
       
       # Add month and year columns
-      data <- values$plot_database
+      data <- values$session_database
       data$month <- data.table::month(as.Date(data$date, format = "%m/%d/%y"))
       data$yea <- data.table::year(as.Date(data$date, format = "%m/%d/%y"))
        
       # Add current month's categories
       cm_categories <- unique(data$category[data$month == mon.index & data$yea == year.index])
       sapply(cm_categories, add_category_to_budget)
+    }
+    
+    # Add a new category to the color database
+    add_category_color <- function(cg) {
+      new_row <- data.table(category = cg, col = shiny_palette[1])
+      shiny_palette <<- shiny_palette[-1]
+      values$session_color_choices <- rbindlist(list(values$session_color_choices, new_row))
+    }
+    
+    # Remove a category that is no longer needed from the color database
+    remove_category_color <- function(cg) {
+      shiny_palette <<- c(values$session_color_choices$col[values$session_color_choices$category == cg], shiny_palette)
+      values$session_color_choices <- values$session_color_choices[values$session_color_choices$category != cg,]
     }
     
 ################################## Data Addition/Changes ##########################################
@@ -114,7 +129,7 @@ shinyServer(
       
       # update database
       new_row <- as.data.table(new_item())
-      values$plot_database <- rbindlist(list(values$plot_database, new_row), fill = T)
+      values$session_database <- rbindlist(list(values$session_database, new_row), fill = T)
       
       if (input$new_or_existing %in% c("Create New", "Select Existing")) {
         add_category_to_budget(new_row$category)
@@ -159,9 +174,9 @@ shinyServer(
       validate (
         need(tryCatch({
           if (input$date_format == "1900") {
-            new_data$date <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
+            tmp <- format(as.Date(new_data$date, origin = "1899-12-30"), "%m/%d/%y")
           } else {
-            new_data$date <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
+            tmp <- format(as.Date(new_data$date, origin = "1904-01-01"), "%m/%d/%y")
           }
         },error = function(x) return(F)),
         "One or more dates were in the wrong format")
@@ -202,7 +217,7 @@ shinyServer(
       
       # Update database
       new_rows <- new_data_table()
-      values$plot_database <- rbindlist(list(values$plot_database, new_rows), fill = T)
+      values$session_database <- rbindlist(list(values$session_database, new_rows), fill = T)
       
       # Update budget
       add_missing_categories_to_budget()
@@ -215,7 +230,7 @@ shinyServer(
     # Delete selected rows from data table
     observeEvent(input$delete_selected, {
       if (!is.null(input$expense_table_rows_selected)) {
-        values$plot_database <- values$plot_database[-input$expense_table_rows_selected,]
+        values$session_database <- values$session_database[-input$expense_table_rows_selected,]
         # Re-render displayed table
         values$rerender_expense_table <- values$rerender_expense_table + 1
       }
@@ -323,6 +338,40 @@ shinyServer(
       values$session_budget[i,"budget"] <- value
     })
     
+    # Add/remove colors from color database whenever budget is updated 
+    observeEvent(values$session_budget, {
+      # Add categories that are in budget but missing from color database
+      categories_to_add <- setdiff(values$session_budget$category, values$session_color_choices$category)
+      
+      # Remove categories that are in neither the budget nor the expense table
+      categories_to_remove <- setdiff(values$session_color_choices$category, 
+                                      c(values$session_budget$category, values$session_database$category))
+      
+      if (length(categories_to_add != 0)) {
+        sapply(categories_to_add, add_category_color)
+      }
+      if (length(categories_to_remove) != 0) {
+        sapply(categories_to_remove, remove_category_color)
+      }
+    })
+    
+    # Add/remove colors from color database whenever expense table is updated
+    observeEvent(values$session_database, {
+      # Add categories that are in expense table but missing from color database
+      categories_to_add <- setdiff(values$session_database$category, values$session_color_choices$category)
+      
+      # Remove categories that are in neither the budget nor the expense table
+      categories_to_remove <- setdiff(values$session_color_choices$category, 
+                                      c(values$session_budget$category, values$session_database$category))
+      
+      if (length(categories_to_add != 0)) {
+        sapply(categories_to_add, add_category_color)
+      }
+      if (length(categories_to_remove) != 0) {
+        sapply(categories_to_remove, remove_category_color)
+      }
+    })
+    
 #################################### Template Downloads ###########################################    
    
     # Download spending tracker template
@@ -346,7 +395,7 @@ shinyServer(
         "budget_template.xlsx"
       },
       content <- function(file) {
-        temp <- data.table(category = unique(values$plot_database$category),
+        temp <- data.table(category = unique(values$session_database$category),
                    budget = 0)
         write.xlsx(temp, file)
       } 
@@ -364,10 +413,10 @@ shinyServer(
     
     # Change choices based on existing categories
     observe({
-     updateSelectInput(session, "category", choices = values$plot_database$category)
+     updateSelectInput(session, "category", choices = values$session_database$category)
      updateSelectInput(session, "budget_category", choices = values$session_budget$category)
-     updateSelectInput(session, "gp", choices = values$plot_database$category)
-     updateSelectInput(session, "yr", choices = year(as.Date(values$plot_database$date, format = "%m/%d/%y")))
+     updateSelectInput(session, "gp", choices = values$session_database$category)
+     updateSelectInput(session, "yr", choices = year(as.Date(values$session_database$date, format = "%m/%d/%y")))
     })
     
 ####################################### Dashboard #################################################
@@ -379,7 +428,7 @@ shinyServer(
       re_render <- values$rerender_expense_table
       
       if (values$show_table) {
-        DT::datatable(isolate(values$plot_database),
+        DT::datatable(isolate(values$session_database),
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
                                      pageLength = 5
                                      #columnDefs = list(list(visible = F, targets = c(5,6)))
@@ -392,21 +441,21 @@ shinyServer(
     # Render average per category bar plot
     output$bp_by_category <- renderPlot({
       if (values$show_table) {
-        barplot_by_category(values$plot_database, input$yr)
+        barplot_by_category(values$session_database, input$yr)
       }
     })
     
     # Render spending over time line plot
     output$monthly_spending<- renderPlot({
       if (values$show_table) {
-        monthly_spending(values$plot_database, input$gp, input$yr)
+        monthly_spending(values$session_database, input$gp, input$yr)
       }
     })
     
     # Render total spending in a given month bar plot
     output$month_totals_plot <- renderPlot({
       if (values$show_table) {
-      month_totals_bp(values$plot_database,input$mon, input$yr)
+      month_totals_bp(values$session_database,input$mon, input$yr)
       }
     })
 
@@ -415,7 +464,7 @@ shinyServer(
     
     # Render the budget barplot
     output$remaining_budget_plot <- renderPlot({
-      monthly_budget_remaining(values$plot_database, values$session_budget)
+      monthly_budget_remaining(values$session_database, values$session_budget)
     })
     
     # Table to Display Budget
@@ -443,11 +492,14 @@ shinyServer(
     
     session$onSessionEnded(function() {
       # Save data changes from this session
-      shiny_database <- isolate(values$plot_database)
+      shiny_database <- isolate(values$session_database)
       shiny_budget <- isolate(values$session_budget)
+      shiny_color_choices <- isolate(values$session_color_choices)
       
       saveRDS(shiny_budget, "shiny_budget.rds")
       saveRDS(shiny_database, "shiny_database.rds")
+      saveRDS(shiny_palette, "shiny_palette.rds")
+      saveRDS(shiny_color_choices, "shiny_color_choices.rds")
       
       stopApp()
     })

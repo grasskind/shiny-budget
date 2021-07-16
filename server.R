@@ -1,4 +1,5 @@
 library(shiny)
+library(shinyhelper)
 library(data.table)
 library(DT)
 library(openxlsx)
@@ -13,7 +14,9 @@ shiny_palette <- input_data[[3]]
 shiny_color_choices <- input_data[[4]]
 
 server <- function(input, output, session) {
-    
+    # Handler for help messages
+    observe_helpers(help_dir = "help_messages")
+  
     # reactive database for rendering plots, and boolean to show table only when it's non-empty
     # plot_database: Stores session database 
     # show_table: Don't show table when there's no data
@@ -54,6 +57,7 @@ server <- function(input, output, session) {
       if (! cg %in% values$session_budget$category) {
         new_row <- data.table(category = cg, budget = 0) 
         values$session_budget <- rbindlist(list(values$session_budget, new_row))
+        values$rerender_budget_table <- values$rerender_budget_table  + 1 
       }
     }
     
@@ -126,7 +130,7 @@ server <- function(input, output, session) {
         # Display month name instead of number
         tmp_new_item <- new_item()
         tmp_new_item$month <- month.name[tmp_new_item$month]
-        print(tmp_new_item)
+        proxy %>% addRow(tmp_new_item, resetPaging = F)
       }
       
       # update database
@@ -134,7 +138,14 @@ server <- function(input, output, session) {
       values$session_database <- rbindlist(list(values$session_database, new_row), fill = T)
       
       if (input$new_or_existing %in% c("Create New", "Select Existing")) {
-        add_category_to_budget(new_row$category)
+        # Get current month/year
+        mon.index <- as.numeric(data.table::month(Sys.Date()))
+        year.index <- as.numeric(data.table::year(Sys.Date()))
+        
+        # Add category to budget only if the new idtem is from this year/month
+        if(new_row$month == mon.index && new_row$year == year.index) {
+          add_category_to_budget(new_row$category)
+        }
       } 
       
       # clear inputs for a new submission
@@ -316,12 +327,19 @@ server <- function(input, output, session) {
     
     # Add new category to budget
     observeEvent(input$user_add_budget_category_button, {
+      # If category is already in budget, acts as a budgeted amount update
+      if (input$user_add_budget_category %in% values$session_budget$category) {
+        values$session_budget[category == input$user_add_budget_category, "budget"] <- input$user_add_budget_price
+        values$rerender_budget_table <- values$rerender_budget_table + 1
+      } else {
       # Add new row to the displayed budget table
-      budget_proxy %>% addRow(new_budget_category())
+        budget_proxy %>% addRow(new_budget_category(), resetPaging = F)
+        
+        # Update database
+        new_row <- as.data.table(new_budget_category())
+        values$session_budget <- rbindlist(list(values$session_budget, new_row), fill = T)  
+      }
       
-      # Update database
-      new_row <- as.data.table(new_budget_category())
-      values$session_budget <- rbindlist(list(values$session_budget, new_row), fill = T)
       
       # Reset inputs
       updateTextInput(session, inputId = "user_add_budget_category", value = "")
@@ -374,8 +392,29 @@ server <- function(input, output, session) {
       }
     })
     
-#################################### Template Downloads ###########################################    
+#################################### Downloads ####################################################    
    
+    # Download full expense table 
+    output$full_expense_table_dw <- downloadHandler(
+      filename <- function() {
+        "expense_table.xlsx"
+      },
+      content <- function(file) {
+        df <- values$session_database[,-c(6,7)]
+        df$date <- as.Date(df$date, format = "%m/%d/%y")
+        write.xlsx(df, file)
+      } 
+    )
+    
+    # Download budget table 
+    output$full_budget_table_dw <- downloadHandler(
+      filename <- function() {
+        "budget.xlsx"
+      },
+      content <- function(file) {
+        write.xlsx(values$session_budget, file)
+      } 
+    )
     # Download spending tracker template
     output$spending_tracker_template <- downloadHandler(
       filename <- function() {
@@ -418,7 +457,8 @@ server <- function(input, output, session) {
      updateSelectInput(session, "category", choices = values$session_database$category)
      updateSelectInput(session, "budget_category", choices = values$session_budget$category)
      updateSelectInput(session, "gp", choices = values$session_database$category)
-     updateSelectInput(session, "yr", choices = year(as.Date(values$session_database$date, format = "%m/%d/%y")))
+     updateSelectInput(session, "yr", choices = year(as.Date(values$session_database$date, format = "%m/%d/%y")),
+                       selected = max(as.numeric(year(as.Date(values$session_database$date, format = "%m/%d/%y")))))
     })
     
 ####################################### Dashboard #################################################
@@ -434,7 +474,7 @@ server <- function(input, output, session) {
         df$month <- sapply(df$month, function(x) month.name[x], USE.NAMES = F)
         DT::datatable(df,
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 10,
+                                     pageLength = 5,
                                      columnDefs = list(list(visible = F, targets = c(4)))
                       ),
                       rownames = F,
@@ -444,21 +484,24 @@ server <- function(input, output, session) {
     
     # Render average per category bar plot
     output$bp_by_category <- renderPlot({
-      if (values$show_table) {
+      # Don't render before year has a chance to update
+      if (values$show_table && !is.na(as.numeric(input$yr))) {
         barplot_by_category(values$session_database, as.numeric(input$yr), values$session_color_choices)
       }
     })
     
     # Render spending over time line plot
     output$monthly_spending<- renderPlot({
-      if (values$show_table) {
+      # Don't render before year has a chance to update
+      if (values$show_table && !is.na(as.numeric(input$yr))) {
         monthly_spending(values$session_database, input$gp, as.numeric(input$yr))
       }
     })
     
     # Render total spending in a given month bar plot
     output$month_totals_plot <- renderPlot({
-      if (values$show_table) {
+      # Don't render before year has a chance to update
+      if (values$show_table && !is.na(as.numeric(input$yr))) {
         month_totals_bp(values$session_database,input$mon, as.numeric(input$yr), values$session_color_choices)
       }
     })
@@ -486,9 +529,12 @@ server <- function(input, output, session) {
     
     # Render a datatable showing the newly uploaded data 
     output$upload_table<- DT::renderDataTable({
-      DT::datatable(new_data_table(),
+      df = new_data_table() 
+      df$month <- sapply(df$month, function(x) month.name[x], USE.NAMES = F)
+      DT::datatable(df,
                     options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                   pageLength = 5
+                                   pageLength = 5,
+                                   columnDefs = list(list(visible = F, targets = c(4)))
                     ),
                     rownames = F,
                     editable = F) 

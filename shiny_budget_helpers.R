@@ -59,6 +59,11 @@ monthly_spending <- function(data, group, yr) {
   # Make a new dataframe with the per month spending in group during year
   pdata <- data[category == group & year == yr, .(month_total = sum(price)), by = month]
   
+  # If category doesn't exist for this year, don't plot anything
+  if(pdata[,.N] == 0) {
+    return(FALSE)
+  }
+  
   # Add a column with 3 letter abbreviations for each month
   pdata$month_abbr <- sapply(pdata$month, function(x) month.abb[x])
   pdata$month_abbr <- factor(pdata$month_abbr, levels = month.abb)
@@ -89,6 +94,10 @@ barplot_by_category <- function(data, yr, color_df) {
   # Make a list of the input year's spending categories
   groups <- unique(data$category[data$year == yr])
   
+  if (length(groups) == 0) {
+    return(FALSE)
+  }
+
   # Calculate average spending for the year per category
   year_avg <- function(d, ct) {
     pd <- d[category == ct & year == yr , .(month_total = sum(price)), by = month]
@@ -186,13 +195,13 @@ monthly_budget_remaining <- function(data, budget_df, color_df) {
   # Order categories by spending
   plot_df$category <- factor(plot_df$category,
                            levels = plot_df$category[order(plot_df$budget,decreasing = T)])
-  plot_df$col <- plot_df$col[order(plot_df$month_total, decreasing = T)]
+  plot_df$col <- plot_df$col[order(plot_df$budget, decreasing = T)]
   
   ggplot(plot_df, aes(x = category, y = month_total, fill = category)) + 
     geom_col() +
     geom_point(mapping = aes(x = category, y = budget)) + 
     scale_fill_manual(values = plot_df$col) + 
-    ggtitle(paste0("Spending in ", month.abb[mon.index]," of ", year.index, ", Total: ", sum(plot_df$month_total))) +
+    ggtitle(paste0("Spending in ", month.name[mon.index]," of ", year.index, ", Total: ", sum(plot_df$month_total))) +
     xlab("Category") +
     ylab("Spending ($)") +
     theme(text=element_text(face="bold"),
@@ -206,44 +215,3 @@ monthly_budget_remaining <- function(data, budget_df, color_df) {
           panel.background = element_blank()) +
     geom_text(aes(label=round(remaining)), position=position_dodge(width=0.9), vjust=-0.25)
 }
-
-####################################### Archived ##################################################
-
-# custom_range_spending <- function(data, start_date, end_date) {
-#   data$date <- as.Date(data$date, format = "%m/%d/%y")
-#   data <- data[data$date >= start_date & data$date <= end_date,]
-#   ggplot(data, aes(fill = category, x = date, y = price)) + 
-#     geom_bar(position="dodge", stat="identity") +
-#     ggtitle("Spending Over Time") +
-#     theme(text=element_text(face="bold"),
-#           axis.text=element_text(size=12),
-#           axis.title=element_text(size=14),
-#           title=element_text(size=16),
-#           #axis.text.x = element_blank(),
-#           #axis.ticks.x = element_blank()
-#     ) + scale_x_date(date_breaks = "1 day", labels = (date_format("%A")))
-# }
-
-# Plot by category over time (one for the past week, one for the past month, and one for the past year)
-# week_spending <- function(data) {
-#   data$date <- as.Date(data$date, format = "%m/%d/%y")
-#   data <- data[data$date >= Sys.Date() - 6,]
-#   df <- sapply(unique(data$date), function(d) {
-#     sums_vec <- sapply(unique(data$category), function(x) { 
-#       sum(data[data$category == x & data$date == d, "price"])
-#     })
-#     data.frame(price = sums_vec, category = names(sums_vec), date = rep(date, length(sums_vec)))
-#   }, simplify = F)
-#   return(df)
-#   ggplot(data, aes(fill = category, x = date, y = price)) + 
-#     geom_bar(position="dodge", stat="identity") +
-#     ggtitle("Spending Over Time") +
-#     theme(text=element_text(face="bold"),
-#           axis.text=element_text(size=12),
-#           axis.title=element_text(size=14),
-#           title=element_text(size=16),
-#           # axis.text.x = element_blank(),
-#           # axis.ticks.x = element_blank())
-#     ) + scale_x_date(date_breaks = "1 day", labels = (date_format("%a")))
-# }
-# setwd("C:/Users/grask/OneDrive/Desktop/Projects/shiny-budget/")

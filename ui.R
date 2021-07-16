@@ -7,14 +7,13 @@ source("shiny_budget_helpers.R")
 DATE_SYSTEM_CHOICES <- get_date_system_choices()
 
 # UI for Shiny Budget App
-shinyUI(
-  dashboardPage(
+ui <- dashboardPage(
     
     dashboardHeader(),
     
     dashboardSidebar(
       sidebarMenu(
-        menuItem("Dashboard", tabName = "dashboard", icon = icon("dashboard")),
+        menuItem("Spending Tracker", tabName = "dashboard", icon = icon("dashboard")),
         menuItem("Budget", tabName = "budget_tab", icon = icon("wallet")),
         menuItem("New Purchase", tabName = "new_purchase", icon = icon("receipt")),
         menuItem("Upload Data", tabName = "data_upload", icon = icon("file-upload"))
@@ -23,7 +22,7 @@ shinyUI(
     ),
     dashboardBody(
       shinyDashboardThemes(
-        theme = "onenote"
+        theme = "poor_mans_flatly"
       ),
       tabItems(
         tabItem(tabName = "dashboard",
@@ -124,12 +123,11 @@ shinyUI(
                     downloadButton("budget_template", label = "Download Template")
                    ),
                    mainPanel(
-                     tableOutput("upload_table"),
-                     tableOutput("budget_upload_table")
+                     DT::dataTableOutput("upload_table"),
+                     DT::dataTableOutput("budget_upload_table")
                    )
                  )
         )
       )
     )
   )
-)

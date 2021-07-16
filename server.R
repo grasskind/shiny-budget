@@ -2,7 +2,6 @@ library(shiny)
 library(data.table)
 library(DT)
 library(openxlsx)
-library(scales)
 
 source("shiny_budget_helpers.R")
 
@@ -13,8 +12,7 @@ shiny_budget <- input_data[[2]]
 shiny_palette <- input_data[[3]]
 shiny_color_choices <- input_data[[4]]
 
-shinyServer(
-  function(input, output, session) {
+server <- function(input, output, session) {
     
     # reactive database for rendering plots, and boolean to show table only when it's non-empty
     # plot_database: Stores session database 
@@ -48,6 +46,7 @@ shinyServer(
       updateTextInput(session, inputId = "new_category", value = "")
       updateNumericInput(session, inputId = "price", value = 0)
       updateTextInput(session, inputId = "description", value = "")
+      updateDateInput(session, inputId = "new_item_date", value = Sys.Date())
     }
     
     # Add new category to budget. If the category already exists, does nothing
@@ -124,7 +123,10 @@ shinyServer(
       # add new row to displayed database if proxy has already been set
       # otherwise it'll be set when the first row is added to the reactive database
       if (values$show_table) {
-        proxy %>% addRow(new_item())
+        # Display month name instead of number
+        tmp_new_item <- new_item()
+        tmp_new_item$month <- month.name[tmp_new_item$month]
+        print(tmp_new_item)
       }
       
       # update database
@@ -428,10 +430,12 @@ shinyServer(
       re_render <- values$rerender_expense_table
       
       if (values$show_table) {
-        DT::datatable(isolate(values$session_database),
+        df = isolate(values$session_database)
+        df$month <- sapply(df$month, function(x) month.name[x], USE.NAMES = F)
+        DT::datatable(df,
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 5
-                                     #columnDefs = list(list(visible = F, targets = c(5,6)))
+                                     pageLength = 10,
+                                     columnDefs = list(list(visible = F, targets = c(4)))
                       ),
                       rownames = F,
                       editable = F)
@@ -441,21 +445,21 @@ shinyServer(
     # Render average per category bar plot
     output$bp_by_category <- renderPlot({
       if (values$show_table) {
-        barplot_by_category(values$session_database, input$yr)
+        barplot_by_category(values$session_database, as.numeric(input$yr), values$session_color_choices)
       }
     })
     
     # Render spending over time line plot
     output$monthly_spending<- renderPlot({
       if (values$show_table) {
-        monthly_spending(values$session_database, input$gp, input$yr)
+        monthly_spending(values$session_database, input$gp, as.numeric(input$yr))
       }
     })
     
     # Render total spending in a given month bar plot
     output$month_totals_plot <- renderPlot({
       if (values$show_table) {
-      month_totals_bp(values$session_database,input$mon, input$yr)
+        month_totals_bp(values$session_database,input$mon, as.numeric(input$yr), values$session_color_choices)
       }
     })
 
@@ -464,7 +468,7 @@ shinyServer(
     
     # Render the budget barplot
     output$remaining_budget_plot <- renderPlot({
-      monthly_budget_remaining(values$session_database, values$session_budget)
+      monthly_budget_remaining(values$session_database, values$session_budget, values$session_color_choices)
     })
     
     # Table to Display Budget
@@ -481,14 +485,24 @@ shinyServer(
 ####################################### Upload Data ###############################################
     
     # Render a datatable showing the newly uploaded data 
-    output$upload_table <- renderTable({
-      new_data_table()
-    })
+    output$upload_table<- DT::renderDataTable({
+      DT::datatable(new_data_table(),
+                    options = list(lengthMenu = c(5, 10, 20, 50, 100),
+                                   pageLength = 5
+                    ),
+                    rownames = F,
+                    editable = F) 
+    }, server = FALSE)    
     
     # Render a datatable showing the uploaded budget 
-    output$budget_upload_table <- renderTable({
-      new_budget()
-    })
+    output$budget_upload_table <- DT::renderDataTable({
+      DT::datatable(new_budget(),
+                    options = list(lengthMenu = c(5, 10, 20, 50, 100),
+                                   pageLength = 5
+                    ),
+                    rownames = F,
+                    editable = F) 
+    }, server = FALSE)    
     
     session$onSessionEnded(function() {
       # Save data changes from this session
@@ -504,4 +518,3 @@ shinyServer(
       stopApp()
     })
   }
-)

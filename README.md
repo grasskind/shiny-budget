@@ -12,11 +12,7 @@ The budget itself is very flexible. You decide on the categories and how much to
 
 ![Budget](./screenshots/budget.PNG)
 
-New expenses can be added one at a time directly from within the app. They can also be uploaded in bulk as shown here:
-
-<img src="./screenshots/upload.PNG" width="500">
-
-Data is automatically saved between sessions, so no need to re-upload. 
+New expenses can uploaded in bulk or added one at a time directly from within the app. Data is automatically saved between sessions, so no need to re-upload. 
 
 The app includes built-in documentation, which can be accessed by clicking the question mark circle on each page. For example, here's the first one:
 

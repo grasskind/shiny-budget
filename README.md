@@ -16,7 +16,7 @@ New expenses can uploaded in bulk or added one at a time directly from within th
 
 The app includes built-in documentation, which can be accessed by clicking the question mark circle on each page. For example, here's the first one:
 
-<img src="./screenshots/help_page.PNG" width="600">
+<img src="./screenshots/help_page.PNG" width="800">
 
 ## Installation
 

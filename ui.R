@@ -2,7 +2,6 @@ library(shiny)
 library(shinyhelper)
 library(magrittr)
 library(shinydashboard)
-library(dashboardthemes)
 
 
 source("shiny_budget_helpers.R")
@@ -11,7 +10,7 @@ DATE_SYSTEM_CHOICES <- get_date_system_choices()
 
 # UI for Shiny Budget App
 ui <- dashboardPage(
-    
+    skin = "blue",
     dashboardHeader(title = "Shiny Budget"),
     
     dashboardSidebar(
@@ -24,9 +23,6 @@ ui <- dashboardPage(
       
     ),
     dashboardBody(
-      shinyDashboardThemes(
-        theme = "poor_mans_flatly"
-      ),
       tabItems(
         tabItem(tabName = "dashboard",
                 fluidRow(

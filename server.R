@@ -110,7 +110,7 @@ server <- function(input, output, session) {
       } else if (input$new_or_existing == "Select From Budget") {
         category <- input$budget_category
       } else {
-        category <- input$new_category
+        category <- trimws(input$new_category)
       }
       
       # Gather all relevant data
@@ -148,7 +148,7 @@ server <- function(input, output, session) {
         mon.index <- as.numeric(data.table::month(Sys.Date()))
         year.index <- as.numeric(data.table::year(Sys.Date()))
         
-        # Add category to budget only if the new idtem is from this year/month
+        # Add category to budget only if the new item is from this year/month
         if(new_row$month == mon.index && new_row$year == year.index) {
           add_category_to_budget(new_row$category)
         }
@@ -327,7 +327,7 @@ server <- function(input, output, session) {
     # Gather data for newly entered category
     new_budget_category <- reactive({
       # Gather all relevant data
-      item_data <- data.frame(input$user_add_budget_category,
+      item_data <- data.frame(trimws(input$user_add_budget_category),
                               input$user_add_budget_price,
                               stringsAsFactors = F)      
       colnames(item_data) <- c("category", "budget")
@@ -464,7 +464,7 @@ server <- function(input, output, session) {
     observe({
      updateSelectInput(session, "category", choices = values$session_database$category)
      updateSelectInput(session, "budget_category", choices = values$session_budget$category)
-     updateSelectInput(session, "gp", choices = values$session_database$category)
+     updateSelectInput(session, "gp", choices = c("Total", values$session_database$category))
      updateSelectInput(session, "yr", choices = year(as.Date(values$session_database$date, format = "%m/%d/%y")),
                        selected = max(as.numeric(year(as.Date(values$session_database$date, format = "%m/%d/%y")))))
     })
@@ -483,8 +483,8 @@ server <- function(input, output, session) {
         df$month <- sapply(df$month, function(x) month.name[x], USE.NAMES = F)
         DT::datatable(df,
                       options = list(lengthMenu = c(5, 10, 20, 50, 100),
-                                     pageLength = 5,
-                                     columnDefs = list(list(visible = F, targets = c(4)))
+                                     pageLength = 5
+                                     #columnDefs = list(list(visible = F, targets = c(4)))
                       ),
                       rownames = F,
                       editable = F)

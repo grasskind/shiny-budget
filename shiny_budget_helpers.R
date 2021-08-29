@@ -56,9 +56,13 @@ get_date_system_choices <- function() {
 # group = spending category, e.g. "Rent"
 # year = Year to make plot for
 monthly_spending <- function(data, group, yr) {
-  
+
   # Make a new dataframe with the per month spending in group during year
-  pdata <- data[category == group & year == yr, .(month_total = sum(price)), by = month]
+  if (group == "Total") {
+   pdata <- data[year == yr, .(month_total = sum(price)), by = month]
+  } else {
+   pdata <- data[category == group & year == yr, .(month_total = sum(price)), by = month]
+  }
   
   # If no entries match the query, don't plot anything
   if(pdata[,.N] == 0) {
@@ -71,21 +75,29 @@ monthly_spending <- function(data, group, yr) {
   pdata$month_abbr <- factor(pdata$month_abbr, levels = month.abb)
   
   # Plot. Title includes average spending over the year
-  ggplot(pdata, aes(x = month_abbr, y = month_total, group = 1)) + 
+  plt <- ggplot(pdata, aes(x = month_abbr, y = month_total, group = 1)) + 
     geom_line(size = 1.5) +
     geom_point(size = 2, color = "purple") + 
-    expand_limits(y = 0) + 
-    ggtitle(paste0("Monthly Spending on ", group,", Average: $", round(mean(pdata$month_total)))) +
-    labs(x = "Month", y = "Total Spent") + 
-    theme(text=element_text(face="bold"),
-          axis.text=element_text(size=12),
-          axis.title=element_text(size=14),
-          title=element_text(size=16),
-          axis.ticks.x = element_blank(),
-          panel.grid.major = element_blank(),
-          panel.grid.minor = element_blank(),
-          panel.background = element_blank()      
-    )
+    expand_limits(y = 0)
+
+    if (group == "Total") {
+     plt <- plt + ggtitle(paste0("Total Monthly Spending", ", Average: $", round(mean(pdata$month_total))))
+    } else {
+     plt <- plt + ggtitle(paste0("Monthly Spending on ", group,", Average: $", round(mean(pdata$month_total))))
+    }
+
+
+    plt <- plt + 
+      labs(x = "Month", y = "Total Spent") + 
+      theme(text=element_text(face="bold"),
+            axis.text=element_text(size=12),
+            axis.title=element_text(size=14),
+            title=element_text(size=16),
+            axis.ticks.x = element_blank(),
+            panel.grid.major = element_blank(),
+            panel.grid.minor = element_blank(),
+            panel.background = element_blank())
+    plt
 }
 
 
@@ -212,7 +224,7 @@ monthly_budget_remaining <- function(data, budget_df, color_df) {
     geom_col() +
     geom_point(mapping = aes(x = category, y = budget)) + 
     scale_fill_manual(values = plot_df$col) + 
-    ggtitle(paste0("Spending in ", month.name[mon.index]," of ", year.index, ", Total: ", sum(plot_df$month_total))) +
+    ggtitle(paste0("Spending in ", month.name[mon.index]," of ", year.index, ", Spent: ", sum(plot_df$month_total), ", Budget: ", sum(plot_df$budget))) +
     xlab("Category") +
     ylab("Spending ($)") +
     theme(text=element_text(face="bold"),

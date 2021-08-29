@@ -27,6 +27,3 @@ To get that "desktop app" feel, right-click on the **shiny_budget** file and sel
 Alternatively, you can clone this repo and run the app either in R Studio or directly from an R console with `shiny::runApp("PATH/TO/APP/", launch.browser=TRUE)`. The path should be the path to the folder containing `server.R` and `ui.R`. This does require installing the appropriate packages beforehand. To install packages, open R and run the following command: `install.packages(c("shiny", "shinyhelper", "data.table", "DT", "openxlsx", "magrittr", "shinydashboard", "dashboardthemes","ggplot2"))`. If you get an error from the `runApp` command because you don't have a launch browser set, try running `options(browser = 'firefox')`.
 
 Feedback/contributions are welcome! Happy Budgeting :) 
-
-## Known Issues
-* Trailing whitespace isn't removed from around categories added to the budget from within the app (the **Create New** field in the **New Purchase** tab or the **Category** field in the **Budget** tab). This means that for example "Rent" and "Rent   " will register as separate categories. Trailing whitespace is removed from any uploaded data however. 

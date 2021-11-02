@@ -12,7 +12,7 @@ The budget itself is fully customizable. You decide on the categories and how mu
 
 ![Budget](./screenshots/budget.PNG)
 
-New expenses can uploaded in bulk or added one at a time directly from within the app. Data is automatically saved between sessions, so no need to re-upload. 
+New expenses can be uploaded in bulk or added one at a time directly from within the app. Data is automatically saved between sessions, so no need to re-upload. 
 
 The app includes built-in documentation, which can be accessed by clicking the question mark circle on each page. For example, here's the first one:
 
@@ -20,7 +20,7 @@ The app includes built-in documentation, which can be accessed by clicking the q
 
 ## Installation
 
-The easiest way to install is by navigating to the [Releases](https://github.com/grasskind/shiny-budget/releases) tab and downloading the zipped program folder (**deploy-shiny-budget.zip**). This was created using the [DesktopDeployR](https://github.com/wleepang/DesktopDeployR) framework. Following the download, unzip in your preferred location and double-click on the **shiny_budget** file to launch. App should start in your browser. This method only works on Windows unfortunately.
+The easiest way to install is by navigating to the [Releases](https://github.com/grasskind/shiny-budget/releases) tab and downloading the zipped program folder (**deploy-shiny-budget.zip**). This was created using the [DesktopDeployR](https://github.com/wleepang/DesktopDeployR) framework. Following the download, unzip in your preferred location and double-click on the **shiny_budget** file to launch. The app should start in your browser. This method only works on Windows unfortunately.
 
 To get that "desktop app" feel, right-click on the **shiny_budget** file and select "Create Shortcut." Drag the shorcut over to your desktop and you're set. If you're like me and like having apps pinned to the taskbar, right-click on the shortcut, select properties, and prepend "cmd.exe /C " to the target path. You should then be able to drag the shortcut down to your taskbar. 
 
